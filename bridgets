@@ -1,0 +1,130 @@
+#Set wd##
+setwd("~/Documents/R")
+
+rm(list = ls())
+
+install.packages("lfe")
+install.packages("gridExtra")
+
+library(gridExtra)
+library(lfe)
+library(dplyr)
+library("readxl")
+library("ggplot2")
+library("stargazer")
+
+getwd()
+
+#Attach Table##
+u2data <- read_excel("UBER.xlsx",3)
+
+attach(u2data)
+head(u2data)
+
+
+#PLOT OVERARCHING DATA ####
+plot(u2data)
+
+#CREATE NEW COLUMN FOR TOTAL TRIPS ####
+u2data$total_trips <- trips_pool + trips_express
+
+#TRYING OUT SOME HISTOGRAMS WITH GGPLOT ####
+p1 <- ggplot(data = u2data, mapping = aes(x = total_trips)) + 
+              labs(x="Total Trips", fill= "Wait Time", y="Count") +
+              ggtitle("Total Trips By Wait Time")
+
+# Use the histogram
+p1 <- p1 + geom_histogram(mapping = aes(fill = wait_time))
+
+p1
+
+ggsave("tot_trips_hist.png", p1)
+
+#PERFORM INITIAL T-TEST ####
+
+df1 <- u2data %>%
+  select(total_trips, wait_time)
+t.test(data = df1, total_trips ~ wait_time)
+#T-TEST SHOWS THERE IS NOT A SIGNIFICANT DIFFERENCE ###
+
+df2 <- u2data %>%
+  select(trips_express, wait_time)
+t.test(data = df2, trips_express ~ wait_time)
+#T-TEST SHOWS THERE IS A SIGNIFICANT DIFFERENCE ###
+
+df3<- u2data %>%
+  select(total_driver_payout, wait_time)
+t.test(data = df3, total_driver_payout ~ wait_time)
+#T-TEST SHOWS THERE IS A SIGNIFICANT DIFFERENCE
+
+df4<- u2data %>%
+  select(total_matches, wait_time)
+t.test(data = df4, total_matches ~ wait_time)
+#T-TEST SHOWS THERE IS NOT A SIGNIFICANT DIFFERENCE
+
+df5<- u2data %>%
+  select(rider_cancellations, wait_time)
+t.test(data = df5, rider_cancellations ~ wait_time)
+#T-TEST SHOWS THERE IS A SIGNIFICANT DIFFERENCE
+
+#STARTING TO EXAMINE T-TEST WITH SIGNIFICANT DIFFERENCE WITH GGPLOT2 ###
+
+df2_graph <- ggplot(data = df2,               
+                    aes(x = trips_express, fill = wait_time)) +
+                    geom_density(alpha = 0.5) + 
+                    theme_classic()  + 
+                    theme(legend.position = c(.8 , .8)) + 
+                    ggtitle("Total Express Rides by Wait Time") + 
+                    labs(x="Total Express Rides" , fill = "Wait Time")
+df2_graph                  
+
+df3_graph <- ggplot(data = u2data,               
+                    aes(x = total_driver_payout, fill = wait_time)) +
+                      geom_density(alpha = 0.5) + 
+                      theme_classic()  + 
+                      theme(legend.position = c(.8 , .8)) + 
+                      ggtitle("Total Driver Payout by Wait Time") + 
+                      labs(x="Total Driver Payout" , fill = "Wait Time")
+df3_graph
+
+df5_graph <- ggplot(data = df5,               
+                    aes(x = rider_cancellations, fill = wait_time)) +
+                    geom_density(alpha = 0.5) + 
+                    theme_classic()  + 
+                    theme(legend.position = c(.8 , .8)) + 
+                    ggtitle("Rider Cancellations by Wait Time") + 
+                    labs(x="Rider Cancellations" , fill = "Wait Time")
+df5_graph                  
+
+plotlist = list(df2_graph,df3_graph,df5_graph)
+plots <- grid.arrange(grobs=plotlist,ncol=2)
+
+#REGRESSION FOR SIGNIFICANT DIFFERENCE###
+r2 <- felm(data = df2, log(trips_express)  ~ treat)
+r3 <- felm(data = df3, log(total_driver_payout)  ~ treat)
+r5 <- felm(data = df5, log(rider_cancellations)  ~ treat)
+stargazer(r2,r3,r5, type = "text" , title = "Baseline Results  - Trips in Logs", 
+          dep.var.labels = c('Tot Trips' , 'Express Pool Trips') ,
+          out = "base_results_log2021.txt")
+
+#REGRESSION FOR SIGNIFICANT DIFFERENCE W/O LOG###
+r2 <- felm(data = df2, trips_express  ~ treat)
+r3 <- felm(data = df3, total_driver_payout  ~ treat)
+r5 <- felm(data = df5, rider_cancellations  ~ treat)
+stargazer(r2,r3,r5, type = "text" , title = "Baseline Results  - Trips in Logs", 
+          dep.var.labels = c('Tot Trips' , 'Express Pool Trips') ,
+          out = "base_results_level2021.txt")
+
+
+#CLEAR PACKAGES ###
+detach("package:datasets", unload = TRUE)
+detach ("package:gridExtra", unload = TRUE)
+detach("package:lfe", unload = TRUE)
+detach("package:dplyr", unload = TRUE)
+detach("package:readxl", unload = TRUE)
+detach("package:ggplot2", unload = TRUE)
+detach("package:stargazer", unload = TRUE)
+cat("\014")
+rm(list = ls())
+
+
